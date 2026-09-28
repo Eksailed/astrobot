@@ -14,11 +14,12 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'chart' | 'tarot' | 'pro'>('chart');
   const [chartViewMode, setChartViewMode] = useState<'wheel' | 'list'>('wheel');
   const [loading, setLoading] = useState(false);
+  const [hasNoChart, setHasNoChart] = useState(false);
   const [chart, setChart] = useState<ChartInfo>({
-    sun_sign: 'Скорпион ♏',
-    moon_sign: 'Рыбы ♓',
-    ascendant: 'Стрелец ♐',
-    birth_place: 'Москва',
+    sun_sign: '...',
+    moon_sign: '...',
+    ascendant: '...',
+    birth_place: 'Загрузка данных...',
     chart_data: null,
   });
   const [tarotCard, setTarotCard] = useState<any>(null);
@@ -40,7 +41,8 @@ export default function App() {
       if (tg.initData) {
         fetch('/api/me', {
           headers: {
-            Authorization: `tma ${tg.initData}`,
+            'Authorization': `tma ${tg.initData}`,
+            'X-Telegram-Init-Data': tg.initData,
           },
         })
           .then((res) => {
@@ -48,20 +50,54 @@ export default function App() {
             throw new Error('Failed to load profile');
           })
           .then((data) => {
-            if (data.chart) {
+            if (data.has_chart && data.chart) {
+              setHasNoChart(false);
               setChart({
                 sun_sign: data.chart.sun_sign,
                 moon_sign: data.chart.moon_sign,
-                ascendant: data.chart.ascendant || 'Стрелец ♐',
+                ascendant: data.chart.ascendant || 'Не указан',
                 birth_place: data.chart.birth_place,
                 chart_data: data.chart.chart_data,
+              });
+            } else {
+              setHasNoChart(true);
+              setChart({
+                sun_sign: 'Не рассчитано',
+                moon_sign: 'Не рассчитано',
+                ascendant: 'Не рассчитано',
+                birth_place: 'Данные не введены',
+                chart_data: null,
               });
             }
           })
           .catch((err) => {
             console.log('Using offline demo data:', err);
+            setChart({
+              sun_sign: 'Скорпион ♏',
+              moon_sign: 'Рыбы ♓',
+              ascendant: 'Стрелец ♐',
+              birth_place: 'Демо-режим',
+              chart_data: null,
+            });
           });
+      } else {
+        // Outside Telegram (direct browser test)
+        setChart({
+          sun_sign: 'Скорпион ♏',
+          moon_sign: 'Рыбы ♓',
+          ascendant: 'Стрелец ♐',
+          birth_place: 'Демо-режим',
+          chart_data: null,
+        });
       }
+    } else {
+      setChart({
+        sun_sign: 'Скорпион ♏',
+        moon_sign: 'Рыбы ♓',
+        ascendant: 'Стрелец ♐',
+        birth_place: 'Демо-режим',
+        chart_data: null,
+      });
     }
   }, []);
 
@@ -138,6 +174,26 @@ export default function App() {
         <div className="mt-4">
           {activeTab === 'chart' && (
             <div className="space-y-4">
+              {hasNoChart && (
+                <div className="bg-amber-950/40 border border-amber-600/50 rounded-2xl p-3.5 text-xs text-amber-200 shadow-lg">
+                  <div className="font-bold flex items-center gap-1.5 mb-1 text-amber-300">
+                    <span>⚠️</span> Профиль еще не заполнен
+                  </div>
+                  <p className="text-amber-200/90 mb-2.5 leading-relaxed">
+                    Чтобы увидеть вашу настоящую карту и расчет планет по вашему городу, завершите анкету в Telegram-боте.
+                  </p>
+                  <button
+                    onClick={() => {
+                      const tg = (window as any).Telegram?.WebApp;
+                      if (tg) tg.close();
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-amber-400 text-slate-950 font-bold text-[11px] shadow hover:bg-amber-300 active:scale-95 transition-all"
+                  >
+                    Перейти в бот (/start)
+                  </button>
+                </div>
+              )}
+
               {/* Cosmogram Container */}
               <div className="bg-slate-900/90 border border-purple-900/60 rounded-2xl p-4 backdrop-blur-md shadow-xl">
                 <div className="flex items-center justify-between mb-3">
