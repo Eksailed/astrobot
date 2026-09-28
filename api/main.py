@@ -24,6 +24,7 @@ from services.astrology.chart_calculator import get_current_transits
 from services.astrology.synastry import calculate_synastry
 from services.tarot.spreads import draw_card_of_the_day
 from services.limits import check_and_increment_limit
+from services.notifications.scheduler import morning_scheduler_loop
 from api.auth import get_current_telegram_user
 
 # Bot Routers & Middleware
@@ -75,10 +76,13 @@ async def lifespan(app: FastAPI):
         polling_task = asyncio.create_task(
             dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
         )
+        scheduler_task = asyncio.create_task(morning_scheduler_loop(bot, target_hour_msk=9))
 
     yield
 
     # Shutdown
+    if scheduler_task:
+        scheduler_task.cancel()
     if polling_task:
         polling_task.cancel()
     if bot:
@@ -95,6 +99,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve React Mini App if built
+import os
+from fastapi.staticfiles import StaticFiles
+
+if os.path.exists("webapp/dist"):
+    app.mount("/app", StaticFiles(directory="webapp/dist", html=True), name="webapp")
 
 
 @app.get("/")
