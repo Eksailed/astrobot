@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: astro_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: astro_user
+      POSTGRES_PASSWORD: astro_pass
+      POSTGRES_DB: astro_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: astro_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  bot:
+    build: .
+    container_name: astro_bot
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://astro_user:astro_pass@postgres:5432/astro_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+    command: python -m bot.main
+
+  api:
+    build: .
+    container_name: astro_api
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://astro_user:astro_pass@postgres:5432/astro_db
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+
+volumes:
+  postgres_data:
+  redis_data:

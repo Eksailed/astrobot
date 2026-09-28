@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at 50% 0%, #1a103c 0%, #080914 70%);
+  color: #f1f5f9;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
