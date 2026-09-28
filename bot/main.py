@@ -18,6 +18,7 @@ from bot.handlers.tarot import router as tarot_router
 from bot.handlers.synastry import router as synastry_router
 from bot.handlers.ai_chat import router as ai_chat_router
 from bot.handlers.payments import router as payments_router
+from bot.handlers.admin import router as admin_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,6 +57,7 @@ async def main() -> None:
     dp.include_router(horoscope_router)
     dp.include_router(tarot_router)
     dp.include_router(synastry_router)
+    dp.include_router(admin_router)
     dp.include_router(ai_chat_router)
 
     logger.info("Starting polling...")

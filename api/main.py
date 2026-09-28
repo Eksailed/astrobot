@@ -35,6 +35,7 @@ from bot.handlers.profile import router as profile_router
 from bot.handlers.horoscope import router as horoscope_router
 from bot.handlers.tarot import router as tarot_router
 from bot.handlers.synastry import router as synastry_router
+from bot.handlers.admin import router as admin_router
 from bot.handlers.ai_chat import router as ai_chat_router
 
 logger = logging.getLogger("astro_app")
@@ -71,6 +72,7 @@ async def lifespan(app: FastAPI):
         dp.include_router(horoscope_router)
         dp.include_router(tarot_router)
         dp.include_router(synastry_router)
+        dp.include_router(admin_router)
         dp.include_router(ai_chat_router)
 
         polling_task = asyncio.create_task(

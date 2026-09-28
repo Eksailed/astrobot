@@ -1,3 +1,4 @@
+import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
@@ -11,7 +12,11 @@ class Settings(BaseSettings):
 
     # Bot
     BOT_TOKEN: str = Field(default="YOUR_BOT_TOKEN_HERE")
-    WEBAPP_URL: str = Field(default="https://example.com")
+    WEBAPP_URL: str = Field(
+        default_factory=lambda: f"{os.environ.get('RENDER_EXTERNAL_URL').rstrip('/')}/app"
+        if os.environ.get("RENDER_EXTERNAL_URL")
+        else "https://example.com"
+    )
 
     # PostgreSQL
     POSTGRES_USER: str = Field(default="astro_user")
@@ -37,6 +42,27 @@ class Settings(BaseSettings):
     PRO_PRICE_STARS: int = Field(default=150)  # ~299 RUB equivalent in Stars
     FREE_DAILY_TAROT: int = Field(default=1)
     FREE_DAILY_AI_QUESTIONS: int = Field(default=1)
+
+    # Admin Panel
+    ADMIN_IDS: str = Field(default="")  # Comma-separated telegram IDs, e.g. "123456789,987654321"
+
+    @property
+    def admin_id_list(self) -> list[int]:
+        if not self.ADMIN_IDS:
+            return []
+        res = []
+        for x in self.ADMIN_IDS.split(","):
+            x = x.strip()
+            if x.isdigit():
+                res.append(int(x))
+        return res
+
+    def is_admin(self, telegram_id: int) -> bool:
+        admins = self.admin_id_list
+        if not admins:
+            # If not configured, allow access and warn so the owner can use it immediately
+            return True
+        return telegram_id in admins
 
 
 settings = Settings()
