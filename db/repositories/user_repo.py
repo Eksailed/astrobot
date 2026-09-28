@@ -30,10 +30,17 @@ class UserRepository:
             language_code=language_code,
             is_agreed_terms=False,
         )
-        self.session.add(user)
-        await self.session.commit()
-        await self.session.refresh(user)
-        return user, True
+        try:
+            self.session.add(user)
+            await self.session.commit()
+            await self.session.refresh(user)
+            return user, True
+        except Exception:
+            await self.session.rollback()
+            existing = await self.get_by_telegram_id(telegram_id)
+            if existing:
+                return existing, False
+            raise
 
     async def set_agreed_terms(self, user_id: int) -> None:
         user = await self.session.get(User, user_id)
