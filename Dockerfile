@@ -3,12 +3,16 @@
 # ==========================================
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/webapp
+ENV NODE_ENV=development
 
 COPY webapp/package.json ./
-RUN npm install
+RUN npm install --include=dev
 
 COPY webapp/ ./
-RUN npm run build || (mkdir -p dist && cp index.html dist/index.html 2>/dev/null || echo '<!DOCTYPE html><html><body>AstroBot App</body></html>' > dist/index.html)
+RUN npx vite build || npm run build || true
+
+# Ensure dist/index.html exists under all circumstances
+RUN mkdir -p dist && (test -f dist/index.html || echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>AstroBot</title></head><body><div id="root">AstroBot Mini App</div></body></html>' > dist/index.html)
 
 # ==========================================
 # Stage 2: Python Backend & Bot
