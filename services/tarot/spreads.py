@@ -21,7 +21,7 @@ class DrawnCard:
 def draw_card_of_the_day(user_id: int | None = None) -> DrawnCard:
     if user_id is not None:
         today_str = date.today().isoformat()
-        rng = random.Random(f"{user_id}:{today_str}")
+        rng = random.Random(f"tarot_card_of_the_day:{user_id}:{today_str}")
         card = rng.choice(TAROT_DECK)
         is_reversed = rng.random() < 0.25
         return DrawnCard(card=card, is_reversed=is_reversed)

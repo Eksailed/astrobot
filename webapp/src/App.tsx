@@ -39,18 +39,16 @@ export default function App() {
 
       // Fetch user's calculated natal chart from backend
       if (tg.initData) {
+        // 1. Fetch profile & natal chart
         fetch('/api/me', {
           headers: {
             'Authorization': `tma ${tg.initData}`,
             'X-Telegram-Init-Data': tg.initData,
           },
         })
-          .then((res) => {
-            if (res.ok) return res.json();
-            throw new Error('Failed to load profile');
-          })
+          .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
-            if (data.has_chart && data.chart) {
+            if (data?.has_chart && data.chart) {
               setHasNoChart(false);
               setChart({
                 sun_sign: data.chart.sun_sign,
@@ -59,7 +57,7 @@ export default function App() {
                 birth_place: data.chart.birth_place,
                 chart_data: data.chart.chart_data,
               });
-            } else {
+            } else if (data) {
               setHasNoChart(true);
               setChart({
                 sun_sign: 'Не рассчитано',
@@ -72,14 +70,27 @@ export default function App() {
           })
           .catch((err) => {
             console.log('Using offline demo data:', err);
-            setChart({
-              sun_sign: 'Скорпион ♏',
-              moon_sign: 'Рыбы ♓',
-              ascendant: 'Стрелец ♐',
-              birth_place: 'Демо-режим',
-              chart_data: null,
-            });
           });
+
+        // 2. Prefetch today's Tarot card (exact same as in chat)
+        fetch('/api/tarot/card-of-day', {
+          headers: {
+            'Authorization': `tma ${tg.initData}`,
+            'X-Telegram-Init-Data': tg.initData,
+          },
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data?.name_ru) {
+              setTarotCard({
+                name: data.name_ru,
+                position: data.position,
+                keywords: Array.isArray(data.keywords) ? data.keywords.join(', ') : data.keywords,
+                desc: data.meaning,
+              });
+            }
+          })
+          .catch(() => {});
       } else {
         // Outside Telegram (direct browser test)
         setChart({
@@ -106,15 +117,24 @@ export default function App() {
     setIsFlipped(false);
 
     const tg = (window as any).Telegram?.WebApp;
+    if (tarotCard) {
+      setTimeout(() => {
+        setLoading(false);
+        setIsFlipped(true);
+      }, 500);
+      return;
+    }
+
     if (tg?.initData) {
       fetch('/api/tarot/card-of-day', {
         headers: {
-          Authorization: `tma ${tg.initData}`,
+          'Authorization': `tma ${tg.initData}`,
+          'X-Telegram-Init-Data': tg.initData,
         },
       })
         .then((res) => {
           if (res.ok) return res.json();
-          throw new Error('Limit reached or error');
+          throw new Error('Tarot error');
         })
         .then((data) => {
           setTarotCard({
@@ -127,29 +147,20 @@ export default function App() {
           setIsFlipped(true);
         })
         .catch(() => {
-          // Fallback offline card
-          setTimeout(() => {
-            setTarotCard({
-              name: 'Колесо Фортуны',
-              position: 'Прямое положение',
-              keywords: 'Судьба, поворот к лучшему, новый цикл',
-              desc: 'Перед вами открывается дверь редких возможностей. Доверьтесь космическому ритму.',
-            });
-            setLoading(false);
-            setIsFlipped(true);
-          }, 600);
+          setLoading(false);
+          setIsFlipped(true);
         });
     } else {
       setTimeout(() => {
         setTarotCard({
           name: 'Колесо Фортуны',
-          position: 'Прямое положение',
+          position: 'Прямое положение ⬆️',
           keywords: 'Судьба, поворот к лучшему, новый цикл',
           desc: 'Перед вами открывается дверь редких возможностей. Доверьтесь космическому ритму.',
         });
         setLoading(false);
         setIsFlipped(true);
-      }, 600);
+      }, 500);
     }
   };
 

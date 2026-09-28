@@ -72,7 +72,7 @@ async def on_tarot_day(callback: CallbackQuery, session: AsyncSession) -> None:
     allowed, count, max_lim = await check_and_increment_limit(user.id, "tarot", is_pro, session=session)
     if not allowed:
         # User already consumed limit, show their fixed daily card
-        drawn = draw_card_of_the_day(user_id=user.id)
+        drawn = draw_card_of_the_day(user_id=user.telegram_id)
         await callback.message.answer(
             f"🃏 **Ваша Карта Дня на сегодня уже вытянута:**\n\n"
             f"{format_card(drawn)}\n\n"
@@ -84,7 +84,7 @@ async def on_tarot_day(callback: CallbackQuery, session: AsyncSession) -> None:
         await callback.answer()
         return
 
-    drawn = draw_card_of_the_day(user_id=user.id)
+    drawn = draw_card_of_the_day(user_id=user.telegram_id)
     text = (
         f"🃏 **Ваша Карта Дня на сегодня:**\n\n"
         f"{format_card(drawn)}\n\n"

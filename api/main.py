@@ -221,19 +221,16 @@ async def get_tarot_card_of_day(
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     user_repo = UserRepository(session)
-    user, _ = await user_repo.get_or_create(current_user["id"])
+    user, _ = await user_repo.get_or_create(
+        telegram_id=current_user["id"],
+        username=current_user.get("username"),
+        first_name=current_user.get("first_name"),
+    )
 
     sub_repo = SubscriptionRepository(session)
     is_pro = (await sub_repo.get_active_subscription(user.id)) is not None
 
-    allowed, count, max_lim = await check_and_increment_limit(user.id, "tarot", is_pro, session=session)
-    if not allowed:
-        raise HTTPException(
-            status_code=429,
-            detail="Бесплатный суточный лимит исчерпан. Оформите PRO для снятия ограничений."
-        )
-
-    drawn = draw_card_of_the_day(user_id=user.id)
+    drawn = draw_card_of_the_day(user_id=user.telegram_id)
     return {
         "card_id": drawn.card.id,
         "name_ru": drawn.card.name_ru,
@@ -242,6 +239,7 @@ async def get_tarot_card_of_day(
         "position": drawn.position_str,
         "meaning": drawn.meaning,
         "keywords": drawn.card.keywords,
+        "is_pro": is_pro,
     }
 
 
