@@ -32,7 +32,10 @@ def get_main_menu_keyboard(webapp_url: str = settings.WEBAPP_URL) -> ReplyKeyboa
             KeyboardButton(text="💬 Чат с Астрологом"),
         ],
         [
+            KeyboardButton(text="💞 Совместимость"),
             KeyboardButton(text="⭐ Pro-подписка"),
+        ],
+        [
             KeyboardButton(text="📱 Открыть Mini App", web_app=WebAppInfo(url=webapp_url)),
         ],
     ]
@@ -89,6 +92,19 @@ def get_tarot_menu_keyboard(is_pro: bool) -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(text=f"💼 Карьера и Финансы{pro_badge}", callback_data="tarot_career"),
+        ],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
+
+def get_synastry_choice_keyboard(bot_username: str, user_id: int) -> InlineKeyboardMarkup:
+    share_url = f"https://t.me/share/url?url=https://t.me/{bot_username}?start=syn_{user_id}&text=Давай проверим нашу астрологическую совместимость! ✨"
+    kb = [
+        [
+            InlineKeyboardButton(text="✍️ Ввести данные партнера вручную", callback_data="synastry_manual"),
+        ],
+        [
+            InlineKeyboardButton(text="📲 Отправить ссылку партнеру", url=share_url),
         ],
     ]
     return InlineKeyboardMarkup(inline_keyboard=kb)

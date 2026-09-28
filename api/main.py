@@ -21,6 +21,7 @@ from db.repositories.subscription_repo import SubscriptionRepository
 from services.astrology.geocoding import resolve_location
 from services.astrology.ephemeris import calculate_chart
 from services.astrology.chart_calculator import get_current_transits
+from services.astrology.synastry import calculate_synastry
 from services.tarot.spreads import draw_card_of_the_day
 from services.limits import check_and_increment_limit
 from api.auth import get_current_telegram_user
@@ -32,6 +33,7 @@ from bot.handlers.payments import router as payments_router
 from bot.handlers.profile import router as profile_router
 from bot.handlers.horoscope import router as horoscope_router
 from bot.handlers.tarot import router as tarot_router
+from bot.handlers.synastry import router as synastry_router
 from bot.handlers.ai_chat import router as ai_chat_router
 
 logger = logging.getLogger("astro_app")
@@ -67,6 +69,7 @@ async def lifespan(app: FastAPI):
         dp.include_router(profile_router)
         dp.include_router(horoscope_router)
         dp.include_router(tarot_router)
+        dp.include_router(synastry_router)
         dp.include_router(ai_chat_router)
 
         polling_task = asyncio.create_task(
@@ -226,4 +229,45 @@ async def get_tarot_card_of_day(
         "position": drawn.position_str,
         "meaning": drawn.meaning,
         "keywords": drawn.card.keywords,
+    }
+
+
+@app.post("/api/synastry/calculate")
+async def calculate_synastry_api(
+    data: BirthDataRequest,
+    current_user: dict = Depends(get_current_telegram_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    user_repo = UserRepository(session)
+    user = await user_repo.get_by_telegram_id(current_user["id"])
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    chart_repo = ChartRepository(session)
+    user_chart = await chart_repo.get_by_user_id(user.id)
+    if not user_chart:
+        raise HTTPException(status_code=400, detail="User natal chart not found. Please calculate your chart first.")
+
+    partner_loc = await resolve_location(data.city)
+    parsed_time = None
+    if data.birth_time:
+        try:
+            parsed_time = datetime.strptime(data.birth_time, "%H:%M").time()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid time format. Use HH:MM")
+
+    partner_chart_data = calculate_chart(
+        birth_date=data.birth_date,
+        birth_time=parsed_time,
+        latitude=partner_loc.latitude,
+        longitude=partner_loc.longitude,
+        timezone_str=partner_loc.timezone_str,
+    )
+
+    syn_result = calculate_synastry(user_chart.chart_data, partner_chart_data)
+    return {
+        "user_sun": user_chart.sun_sign,
+        "partner_sun": partner_chart_data["sun_sign"],
+        "partner_city": partner_loc.place_name,
+        **syn_result,
     }
