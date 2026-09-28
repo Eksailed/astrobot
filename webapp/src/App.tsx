@@ -38,14 +38,17 @@ export default function App() {
       }
 
       // Fetch user's calculated natal chart from backend
-      if (tg.initData) {
+      const tgUserId = tg.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : '';
+
+      if (tg.initData || tgUserId) {
+        const authHeaders: Record<string, string> = {
+          'Authorization': `tma ${tg.initData || ''}`,
+          'X-Telegram-Init-Data': tg.initData || '',
+          'X-Telegram-User-Id': tgUserId,
+        };
+
         // 1. Fetch profile & natal chart
-        fetch('/api/me', {
-          headers: {
-            'Authorization': `tma ${tg.initData}`,
-            'X-Telegram-Init-Data': tg.initData,
-          },
-        })
+        fetch('/api/me', { headers: authHeaders })
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
             if (data?.has_chart && data.chart) {
@@ -69,16 +72,11 @@ export default function App() {
             }
           })
           .catch((err) => {
-            console.log('Using offline demo data:', err);
+            console.log('Profile fetch error:', err);
           });
 
         // 2. Prefetch today's Tarot card (exact same as in chat)
-        fetch('/api/tarot/card-of-day', {
-          headers: {
-            'Authorization': `tma ${tg.initData}`,
-            'X-Telegram-Init-Data': tg.initData,
-          },
-        })
+        fetch('/api/tarot/card-of-day', { headers: authHeaders })
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
             if (data?.name_ru) {
@@ -117,51 +115,48 @@ export default function App() {
     setIsFlipped(false);
 
     const tg = (window as any).Telegram?.WebApp;
+    const tgUserId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : '';
+
     if (tarotCard) {
       setTimeout(() => {
         setLoading(false);
         setIsFlipped(true);
-      }, 500);
+      }, 400);
       return;
     }
 
-    if (tg?.initData) {
-      fetch('/api/tarot/card-of-day', {
-        headers: {
-          'Authorization': `tma ${tg.initData}`,
-          'X-Telegram-Init-Data': tg.initData,
-        },
+    const authHeaders: Record<string, string> = {
+      'Authorization': `tma ${tg?.initData || ''}`,
+      'X-Telegram-Init-Data': tg?.initData || '',
+      'X-Telegram-User-Id': tgUserId,
+    };
+
+    fetch('/api/tarot/card-of-day', { headers: authHeaders })
+      .then((res) => {
+        if (res.ok) return res.json();
+        throw new Error('Tarot error');
       })
-        .then((res) => {
-          if (res.ok) return res.json();
-          throw new Error('Tarot error');
-        })
-        .then((data) => {
-          setTarotCard({
-            name: data.name_ru,
-            position: data.position,
-            keywords: Array.isArray(data.keywords) ? data.keywords.join(', ') : data.keywords,
-            desc: data.meaning,
-          });
-          setLoading(false);
-          setIsFlipped(true);
-        })
-        .catch(() => {
-          setLoading(false);
-          setIsFlipped(true);
-        });
-    } else {
-      setTimeout(() => {
+      .then((data) => {
         setTarotCard({
-          name: 'Колесо Фортуны',
-          position: 'Прямое положение ⬆️',
-          keywords: 'Судьба, поворот к лучшему, новый цикл',
-          desc: 'Перед вами открывается дверь редких возможностей. Доверьтесь космическому ритму.',
+          name: data.name_ru,
+          position: data.position,
+          keywords: Array.isArray(data.keywords) ? data.keywords.join(', ') : data.keywords,
+          desc: data.meaning,
         });
         setLoading(false);
         setIsFlipped(true);
-      }, 500);
-    }
+      })
+      .catch((err) => {
+        console.error('Error drawing tarot:', err);
+        setTarotCard({
+          name: 'Священный Оракул',
+          position: 'Синхронизация...',
+          keywords: 'Пожалуйста, обновите приложение',
+          desc: 'Не удалось связаться с сервером. Попробуйте еще раз через несколько секунд.',
+        });
+        setLoading(false);
+        setIsFlipped(true);
+      });
   };
 
   return (
