@@ -1,22 +1,89 @@
+import asyncio
+import logging
+from contextlib import asynccontextmanager
 from datetime import datetime, date, time
 from typing import Any
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+from aiogram import Bot, Dispatcher
+from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties
+from aiogram.fsm.storage.memory import MemoryStorage
 
-from db.session import get_db_session
+from core.config import settings
+from core.redis import init_redis, close_redis
+from db.session import get_db_session, init_db
 from db.repositories.user_repo import UserRepository
 from db.repositories.chart_repo import ChartRepository
 from db.repositories.subscription_repo import SubscriptionRepository
 from services.astrology.geocoding import resolve_location
 from services.astrology.ephemeris import calculate_chart
 from services.astrology.chart_calculator import get_current_transits
-from services.tarot.spreads import draw_card_of_the_day, draw_three_cards_spread
+from services.tarot.spreads import draw_card_of_the_day
 from services.limits import check_and_increment_limit
 from api.auth import get_current_telegram_user
 
-app = FastAPI(title="AstroBot Mini App API", version="1.0.0")
+# Bot Routers & Middleware
+from bot.middlewares.db import DatabaseMiddleware
+from bot.handlers.base import router as base_router
+from bot.handlers.payments import router as payments_router
+from bot.handlers.profile import router as profile_router
+from bot.handlers.horoscope import router as horoscope_router
+from bot.handlers.tarot import router as tarot_router
+from bot.handlers.ai_chat import router as ai_chat_router
+
+logger = logging.getLogger("astro_app")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 1. Initialize DB
+    logger.info("Initializing DB tables...")
+    await init_db()
+
+    # 2. Initialize Redis (optional fallback)
+    try:
+        await init_redis()
+    except Exception as e:
+        logger.warning(f"Redis not available: {e}. Using DB/Memory fallback.")
+
+    # 3. Start Bot Polling in Background
+    bot = None
+    polling_task = None
+    if settings.BOT_TOKEN and "YOUR_BOT_TOKEN" not in settings.BOT_TOKEN:
+        logger.info("Starting Telegram Bot polling in background...")
+        bot = Bot(
+            token=settings.BOT_TOKEN,
+            default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        )
+        dp = Dispatcher(storage=MemoryStorage())
+        dp.update.middleware(DatabaseMiddleware())
+
+        # Register Routers
+        dp.include_router(base_router)
+        dp.include_router(payments_router)
+        dp.include_router(profile_router)
+        dp.include_router(horoscope_router)
+        dp.include_router(tarot_router)
+        dp.include_router(ai_chat_router)
+
+        polling_task = asyncio.create_task(
+            dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+        )
+
+    yield
+
+    # Shutdown
+    if polling_task:
+        polling_task.cancel()
+    if bot:
+        await bot.session.close()
+    await close_redis()
+
+
+app = FastAPI(title="AstroBot API & Service", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,6 +92,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "AstroBot Web & Telegram Bot"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
 
 
 class BirthDataRequest(BaseModel):
@@ -133,14 +210,14 @@ async def get_tarot_card_of_day(
     sub_repo = SubscriptionRepository(session)
     is_pro = (await sub_repo.get_active_subscription(user.id)) is not None
 
-    allowed, count, max_lim = await check_and_increment_limit(user.id, "tarot", is_pro)
+    allowed, count, max_lim = await check_and_increment_limit(user.id, "tarot", is_pro, session=session)
     if not allowed:
         raise HTTPException(
             status_code=429,
             detail="Бесплатный суточный лимит исчерпан. Оформите PRO для снятия ограничений."
         )
 
-    drawn = draw_card_of_the_day()
+    drawn = draw_card_of_the_day(user_id=user.id)
     return {
         "card_id": drawn.card.id,
         "name_ru": drawn.card.name_ru,

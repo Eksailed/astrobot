@@ -14,5 +14,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Run bot by default
-CMD ["python", "-m", "bot.main"]
+# Run web service and bot polling
+CMD ["python", "run.py"]
